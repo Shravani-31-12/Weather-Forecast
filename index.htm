@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weather Forecast</title>
+
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+
+
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+  />
+
+  
+  <link
+    href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap"
+    rel="stylesheet"
+  />
+
+ 
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  
+  <div class="theme-toggle" id="themeToggle" title="Switch Day/Night">
+    <i class="fa-solid fa-moon"></i>
+  </div>
+
+
+  <div class="app-container">
+    <header>
+      <h1>Weather App</h1>
+      <p class="tagline">Get Real-Time Weather Updates Instantly</p>
+    </header>
+
+    
+    <div class="search-box">
+      <input id="city" type="text" placeholder="Enter city name..." />
+      <div class="button-group">
+        <button id="searchBtn">Search</button>
+        <button id="locationBtn">Use My Location</button>
+      </div>
+    </div>
+
+    
+    <div class="weather-card hidden">
+      <h2 id="cityName">--</h2>
+      <img id="weatherIcon" src="img/cloud.jpg" alt="Weather Icon" />
+      <p id="description">--</p>
+      <h3 id="temperature">-- °C</h3>
+
+      <div class="details">
+        <p><strong>Feels Like:</strong> <span id="feelsLike">--°C</span></p>
+        <p><strong>Humidity:</strong> <span id="humidity">--%</span></p>
+        <p><strong>Wind Speed:</strong> <span id="windSpeed">-- km/hr</span></p>
+      </div>
+    </div>
+
+ 
+    <div id="weeklyForecast" class="weekly-forecast hidden">
+      <h3>7-Day Forecast</h3>
+      <div class="forecast-container" id="forecastContainer"></div>
+    </div>
+
+    <div class="error-message hidden" id="errormsg">City not found</div>
+  </div>
+
+
+
+  <footer>Copyright © 2025 Shravani Pawar</footer>
+
+  
+  <script src="script.js"></script>
+
+  
+  <script>
+    const toggleBtn = document.getElementById("themeToggle");
+    toggleBtn.addEventListener("click", () => {
+      document.body.classList.toggle("night-mode");
+      if (document.body.classList.contains("night-mode")) {
+        toggleBtn.innerHTML = `<i class="fa-solid fa-sun"></i>`;
+      } else {
+        toggleBtn.innerHTML = `<i class="fa-solid fa-moon"></i>`;
+      }
+    });
+  </script>
+</body>
+</html>
