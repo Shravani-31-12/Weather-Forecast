@@ -21,8 +21,6 @@ A modern and responsive **Weather Forecast Application** built with **HTML, CSS 
 
 
 
-Check out the live working version here:
-Weather Forecast on GitHub Pages
 
 🖼 Screenshots
 
