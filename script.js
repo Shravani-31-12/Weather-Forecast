@@ -11,8 +11,8 @@ const locationBtn = document.getElementById("locationBtn");
 const cityName = document.getElementById("cityName");
 const description = document.getElementById("description");
 const temperature = document.getElementById("temperature");
-const feelsLike = document.getElementById("feelsLike"); 
-const humidity = document.getElementById("humidity");   
+const feelsLike = document.getElementById("feelsLike");
+const humidity = document.getElementById("humidity");
 const windSpeed = document.getElementById("windSpeed");
 const weatherIcon = document.getElementById("weatherIcon");
 
@@ -27,7 +27,6 @@ hideError();
 
 
 function mapWeatherCodeToEmoji(code) {
-
   if (code === 0) return "☀️";
   if (code >= 1 && code <= 3) return "⛅";
   if (code === 45 || code === 48) return "🌫️";
@@ -35,10 +34,8 @@ function mapWeatherCodeToEmoji(code) {
   if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "🌧️";
   if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86)) return "❄️";
   if (code >= 95 && code <= 99) return "⛈️";
-  
   return "🌤️";
 }
-
 
 function weatherCodeToText(code) {
   if (code === 0) return "Clear";
@@ -52,7 +49,6 @@ function weatherCodeToText(code) {
   if (code >= 95 && code <= 99) return "Thunderstorm";
   return "Cloudy";
 }
-
 
 function showError(message) {
   if (errorMessage) {
@@ -68,52 +64,108 @@ function displayWeatherLocationName(name, country) {
   cityName.textContent = country ? `${name}, ${country}` : name;
 }
 
-function displayCurrentWeather(current, placeName, country) {
+function emojiToDataUrl(emoji, size = 120, fontSize = 64) {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'><foreignObject width='100%' height='100%'><div xmlns='http://www.w3.org/1999/xhtml' style='font-size:${fontSize}px;display:flex;align-items:center;justify-content:center;height:100%;background:transparent'>${emoji}</div></foreignObject></svg>`;
+  return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+}
+
+function displayCurrentWeather(currentWeather, hourlyDataMap, placeName, country) {
+  
   hideError();
   if (weatherCard) weatherCard.classList.remove("hidden");
 
   displayWeatherLocationName(placeName, country);
 
- 
-  const tempC = Math.round(current.temperature);
+  
+  const tempC = (currentWeather && typeof currentWeather.temperature !== "undefined")
+    ? Math.round(currentWeather.temperature)
+    : (hourlyDataMap && hourlyDataMap.temperature_2m && hourlyDataMap.temperature_2m.length ? Math.round(hourlyDataMap.temperature_2m[0]) : "N/A");
+
   temperature.textContent = `${tempC} °C`;
-  description.textContent = weatherCodeToText(current.weathercode);
-  windSpeed.textContent = `${Math.round(current.windspeed)} km/hr`;
-  
-  feelsLike.textContent = `--°C`;
-  humidity.textContent = `--%`;
+
+
+  const code = (currentWeather && typeof currentWeather.weathercode !== "undefined") ? currentWeather.weathercode : (hourlyDataMap && hourlyDataMap.weathercode ? hourlyDataMap.weathercode[0] : null);
+  description.textContent = weatherCodeToText(code);
+
+  // wind speed: prefer hourly windspeed_10m at same hour, else current_weather.windspeed (in km/h, see request)
+  let windVal = "N/A";
+  if (hourlyDataMap && hourlyDataMap.windspeed_10m && hourlyDataMap.time) {
+
+    windVal = getHourlyValueAtTime(currentWeather.time, hourlyDataMap.time, hourlyDataMap.windspeed_10m);
+  } else if (currentWeather && typeof currentWeather.windspeed !== "undefined") {
+    windVal = Math.round(currentWeather.windspeed);
+  }
+  windSpeed.textContent = windVal !== null && windVal !== "N/A" ? `${Math.round(windVal)} km/hr` : `N/A`;
+
+
+  let feels = null;
+  let hum = null;
+  if (hourlyDataMap && hourlyDataMap.apparent_temperature && hourlyDataMap.relativehumidity_2m && hourlyDataMap.time) {
+    feels = getHourlyValueAtTime(currentWeather.time, hourlyDataMap.time, hourlyDataMap.apparent_temperature);
+    hum = getHourlyValueAtTime(currentWeather.time, hourlyDataMap.time, hourlyDataMap.relativehumidity_2m);
+  }
+
+
+  feelsLike.textContent = (feels !== null && feels !== undefined) ? `${Math.round(feels)} °C` : `N/A`;
+  humidity.textContent = (hum !== null && hum !== undefined) ? `${Math.round(hum)}%` : `N/A`;
 
   
-  const emoji = mapWeatherCodeToEmoji(current.weathercode);
-
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><foreignObject width='100%' height='100%'><div xmlns='http://www.w3.org/1999/xhtml' style='font-size:64px;display:flex;align-items:center;justify-content:center;height:100%;background:transparent'>${emoji}</div></foreignObject></svg>`;
-  const dataUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
-  weatherIcon.src = dataUrl;
+  const emoji = mapWeatherCodeToEmoji(code);
+  weatherIcon.src = emojiToDataUrl(emoji);
   weatherIcon.alt = description.textContent || emoji;
 }
 
+function getHourlyValueAtTime(targetTimeISO, timeArray, valueArray) {
+  if (!targetTimeISO || !timeArray || !valueArray) return null;
+ 
+  const t = new Date(targetTimeISO);
+ 
+  let idx = timeArray.findIndex(x => {
+  
+    try {
+      const a = new Date(x);
+      return a.getTime() === t.getTime();
+    } catch {
+      return false;
+    }
+  });
+  if (idx === -1) {
+
+    const timestamps = timeArray.map(x => new Date(x).getTime());
+    const targetTs = t.getTime();
+    idx = -1;
+    for (let i = 0; i < timestamps.length; i++) {
+      if (timestamps[i] <= targetTs) idx = i;
+      else break;
+    }
+    if (idx === -1) {
+      
+      idx = 0;
+    }
+  }
+  const val = valueArray[idx];
+  return typeof val !== "undefined" ? val : null;
+}
 
 function displayForecast(daily) {
-  
   if (!daily || !daily.time || daily.time.length === 0) {
     weeklyForecast.classList.add("hidden");
     return;
   }
 
- 
   forecastContainer.innerHTML = "";
 
-
+ 
   const days = daily.time.map((t, i) => ({
     date: t,
     max: Math.round(daily.temperature_2m_max[i]),
     min: Math.round(daily.temperature_2m_min[i]),
-    code: daily.weathercode[i],
+    code: daily.weathercode[i]
   })).slice(0, 7);
 
-  days.forEach((d) => {
-    const date = new Date(d.date + "T00:00:00"); // ensure parse
-    const dayName = date.toLocaleDateString("en-US", { weekday: "short" }); // e.g., Mon
+  days.forEach(d => {
+    const date = new Date(d.date + "T00:00:00");
+    const dayName = date.toLocaleDateString("en-US", { weekday: "short" });
     const emoji = mapWeatherCodeToEmoji(d.code);
 
     const card = document.createElement("div");
@@ -131,7 +183,7 @@ function displayForecast(daily) {
   errorMessage.classList.add("hidden");
   errorMessage.style.display = "none";
 
- 
+
   setTimeout(() => {
     const firstCard = forecastContainer.querySelector(".forecast-day");
     if (firstCard) {
@@ -145,13 +197,22 @@ function displayForecast(daily) {
 async function fetchWeatherByCoords(lat, lon, placeName = "", country = "") {
   try {
     hideError();
-   
+
+    
     const today = new Date();
     const startDate = today.toISOString().slice(0, 10);
-   
     const endDateObj = new Date();
     endDateObj.setDate(today.getDate() + 6);
     const endDate = endDateObj.toISOString().slice(0, 10);
+
+   
+    const hourlyParams = [
+      "temperature_2m",
+      "apparent_temperature",
+      "relativehumidity_2m",
+      "windspeed_10m",
+      "weathercode"
+    ].join(",");
 
     const dailyParams = [
       "temperature_2m_max",
@@ -159,32 +220,48 @@ async function fetchWeatherByCoords(lat, lon, placeName = "", country = "") {
       "weathercode"
     ].join(",");
 
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&daily=${dailyParams}&current_weather=true&timezone=auto&start_date=${startDate}&end_date=${endDate}`;
+    
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&hourly=${hourlyParams}&daily=${dailyParams}&current_weather=true&windspeed_unit=kmh&timezone=auto&start_date=${startDate}&end_date=${endDate}`;
 
     const resp = await fetch(url);
     if (!resp.ok) throw new Error("Unable to fetch weather data");
 
     const data = await resp.json();
 
-    if (!data || (!data.current_weather && !data.daily)) {
-      throw new Error("Incomplete weather data");
-    }
+  
+    if (!data) throw new Error("No data from weather provider");
+    if (!data.current_weather && (!data.hourly || !data.daily)) throw new Error("Incomplete weather data");
 
-    
+  
+    const hourly = data.hourly || {};
+   
+    const hourlyMap = {
+      time: hourly.time || [],
+      temperature_2m: hourly.temperature_2m || [],
+      apparent_temperature: hourly.apparent_temperature || [],
+      relativehumidity_2m: hourly.relativehumidity_2m || [],
+      windspeed_10m: hourly.windspeed_10m || [],
+      weathercode: hourly.weathercode || []
+    };
+
     if (data.current_weather) {
-      displayCurrentWeather(data.current_weather, placeName || `${lat.toFixed(2)},${lon.toFixed(2)}`, country || "");
+      displayCurrentWeather(data.current_weather, hourlyMap, placeName || `${lat.toFixed(2)},${lon.toFixed(2)}`, country || "");
     } else {
-    
-      displayCurrentWeather({ temperature: data.daily.temperature_2m_max[0], windspeed: 0, weathercode: data.daily.weathercode[0] }, placeName || `${lat},${lon}`, country || "");
+     
+      const mockCurrent = {
+        time: hourlyMap.time[0],
+        temperature: hourlyMap.temperature_2m[0],
+        windspeed: hourlyMap.windspeed_10m[0],
+        weathercode: hourlyMap.weathercode[0]
+      };
+      displayCurrentWeather(mockCurrent, hourlyMap, placeName || `${lat.toFixed(2)},${lon.toFixed(2)}`, country || "");
     }
 
-    
     if (data.daily) {
       displayForecast(data.daily);
     } else {
       showError("Forecast data not available");
     }
-
   } catch (err) {
     console.error("fetchWeatherByCoords:", err);
     showError(err.message || "Failed to fetch weather");
@@ -204,7 +281,6 @@ async function geocodeCity(city) {
       throw new Error("City not found");
     }
 
-    
     const pick = data.results[0];
     return {
       name: pick.name,
@@ -228,21 +304,17 @@ searchBtn.addEventListener("click", async () => {
   }
   try {
     hideError();
-   
     const place = await geocodeCity(city);
     await fetchWeatherByCoords(place.latitude, place.longitude, place.name, place.country);
     cityInput.value = "";
   } catch (err) {
-    
     showError(err.message || "Unable to find city");
   }
 });
 
-
 cityInput.addEventListener("keypress", (e) => {
   if (e.key === "Enter") searchBtn.click();
 });
-
 
 locationBtn.addEventListener("click", () => {
   if (!navigator.geolocation) {
@@ -253,9 +325,8 @@ locationBtn.addEventListener("click", () => {
   navigator.geolocation.getCurrentPosition(
     async (pos) => {
       const { latitude, longitude } = pos.coords;
-      
       try {
-       
+        
         const revUrl = `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${latitude}&longitude=${longitude}&count=1&language=en&format=json`;
         const revResp = await fetch(revUrl);
         let placeLabel = `${latitude.toFixed(2)},${longitude.toFixed(2)}`;
@@ -269,7 +340,7 @@ locationBtn.addEventListener("click", () => {
         }
         await fetchWeatherByCoords(latitude, longitude, placeLabel, country);
       } catch (err) {
-       
+        
         await fetchWeatherByCoords(latitude, longitude, `${latitude.toFixed(2)},${longitude.toFixed(2)}`, "");
       }
     },
@@ -282,13 +353,12 @@ locationBtn.addEventListener("click", () => {
 
 
 forecastContainer.addEventListener("keydown", (e) => {
-  if (e.key === "ArrowRight") {
-    forecastContainer.scrollBy({ left: 120, behavior: "smooth" });
-  } else if (e.key === "ArrowLeft") {
-    forecastContainer.scrollBy({ left: -120, behavior: "smooth" });
-  }
+  if (e.key === "ArrowRight") forecastContainer.scrollBy({ left: 120, behavior: "smooth" });
+  else if (e.key === "ArrowLeft") forecastContainer.scrollBy({ left: -120, behavior: "smooth" });
 });
 
+
+ getWeatherForDefaultCity("Pune");
 
 async function getWeatherForDefaultCity(cityName) {
   try {
@@ -299,4 +369,4 @@ async function getWeatherForDefaultCity(cityName) {
   }
 }
 
-console.log("Open-Meteo weather script loaded (7-day forecast, emoji icons).");
+console.log("Open-Meteo weather script loaded (full current + 7-day forecast).");
